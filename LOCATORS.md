@@ -98,6 +98,37 @@ test('Fill email field by ID', async ({ page }) => {
 });
 ```
 
+### GetBy Alternative - Find by TestId
+
+**HTML:**
+```html
+<button data-testid="submitButton">Submit Form</button>
+```
+
+**Playwright Code - Using GetByTestId:**
+```javascript
+test('Find button by test id', async ({ page }) => {
+  await page.goto('https://testautomationpractice.blogspot.com/');
+  
+  // Using getByTestId (modern way)
+  const submitButton = page.getByTestId('submitButton');
+  
+  // Click it
+  await submitButton.click();
+  
+  console.log('✓ Button found using getByTestId');
+});
+```
+
+**Explanation:**
+- `getByTestId()` = Modern way to find elements
+- Looks for `data-testid` attribute
+- More reliable than ID
+- Recommended for testing
+- Difference from `#submitBtn`:
+  - `#submitBtn` = Finds by id attribute (for any element)
+  - `getByTestId()` = Finds by data-testid attribute (specifically for testing)
+
 ---
 
 ## 2. Locator by Name
@@ -161,6 +192,38 @@ test('Fill last name by name attribute', async ({ page }) => {
   console.log('✓ Last name input found using name attribute');
 });
 ```
+
+### GetBy Alternative - Find by Label
+
+**HTML:**
+```html
+<label for="firstName">First Name:</label>
+<input id="firstName" type="text" placeholder="Enter first name">
+```
+
+**Playwright Code - Using GetByLabel:**
+```javascript
+test('Find input by label', async ({ page }) => {
+  await page.goto('https://testautomationpractice.blogspot.com/');
+  
+  // Using getByLabel (looks for associated label)
+  const firstNameInput = page.getByLabel('First Name:');
+  
+  // Type John
+  await firstNameInput.fill('John');
+  
+  console.log('✓ Input found using getByLabel');
+});
+```
+
+**Explanation:**
+- `getByLabel()` = Find input by its label text
+- Looks for `<label>` tag associated with input
+- Very user-friendly
+- Reflects how users see the form
+- Difference from `input[name="firstname"]`:
+  - `input[name="firstname"]` = Finds by name attribute (technical)
+  - `getByLabel()` = Finds by visible label text (user-centric)
 
 ---
 
@@ -233,6 +296,38 @@ test('Fill textbox using role', async ({ page }) => {
 });
 ```
 
+### GetBy Alternative - Find by Role
+
+**HTML:**
+```html
+<button type="submit">Submit Form</button>
+```
+
+**Playwright Code - Using GetByRole:**
+```javascript
+test('Find button using getByRole', async ({ page }) => {
+  await page.goto('https://testautomationpractice.blogspot.com/');
+  
+  // Using getByRole (modern way, built for accessibility)
+  const submitButton = page.getByRole('button', { name: 'Submit Form' });
+  
+  // Click it
+  await submitButton.click();
+  
+  console.log('✓ Button found using getByRole');
+});
+```
+
+**Explanation:**
+- `getByRole()` = Find by accessibility role
+- First parameter = role type (button, textbox, link, etc.)
+- Second parameter = { name: 'text' } = filter by visible text
+- Very accessible and reliable
+- Recommended for modern tests
+- Difference from `role=button`:
+  - `role=button` = Locator syntax (older way)
+  - `getByRole()` = GetBy API (modern, recommended way)
+
 ---
 
 ## 4. Locator by Text
@@ -298,6 +393,37 @@ test('Click link by text', async ({ page }) => {
 });
 ```
 
+### GetBy Alternative - Find by Text (GetByText)
+
+**HTML:**
+```html
+<button>Submit Form</button>
+```
+
+**Playwright Code - Using GetByText:**
+```javascript
+test('Find button using getByText', async ({ page }) => {
+  await page.goto('https://testautomationpractice.blogspot.com/');
+  
+  // Using getByText (modern way)
+  const submitButton = page.getByText('Submit Form');
+  
+  // Click it
+  await submitButton.click();
+  
+  console.log('✓ Button found using getByText');
+});
+```
+
+**Explanation:**
+- `getByText()` = Find by visible text content
+- Simple and straightforward
+- Exact match required (unless regex used)
+- Very readable and maintainable
+- Difference from `text=Submit Form`:
+  - `text=Submit Form` = Locator syntax (older)
+  - `getByText()` = GetBy API (modern, recommended)
+
 ---
 
 ## 5. Locator by Placeholder
@@ -360,6 +486,36 @@ test('Find password input by placeholder', async ({ page }) => {
   console.log('✓ Password input found by placeholder');
 });
 ```
+
+### GetBy Alternative - Find by Placeholder (GetByPlaceholder)
+
+**HTML:**
+```html
+<input type="email" placeholder="Enter your email">
+```
+
+**Playwright Code - Using GetByPlaceholder:**
+```javascript
+test('Find input using getByPlaceholder', async ({ page }) => {
+  await page.goto('https://testautomationpractice.blogspot.com/');
+  
+  // Using getByPlaceholder (modern way)
+  const emailInput = page.getByPlaceholder('Enter your email');
+  
+  // Type email
+  await emailInput.fill('test@example.com');
+  
+  console.log('✓ Input found using getByPlaceholder');
+});
+```
+
+**Explanation:**
+- `getByPlaceholder()` = Find input by placeholder text
+- Cleaner syntax than `input[placeholder="..."]`
+- More readable and less error-prone
+- Difference from `input[placeholder="..."]`:
+  - `input[placeholder="..."]` = Attribute selector (technical)
+  - `getByPlaceholder()` = GetBy API (modern, dedicated method)
 
 ---
 
@@ -430,6 +586,24 @@ test('Select radio by label', async ({ page }) => {
   
   console.log('✓ Radio button found by label');
 });
+```
+
+### GetBy Alternative - Find by Label (Already Covered Above)
+
+**Note:** We already showed `getByLabel()` earlier in the Name section. That's the GetBy alternative for labels.
+
+**Quick Comparison:**
+```javascript
+// Old way - aria-label
+const checkbox = page.locator('input[aria-label="Accept Terms"]');
+
+// New way - getByLabel
+const checkbox = page.getByLabel('Accept Terms:');
+
+// getBy approach is:
+// - More readable
+// - Less prone to errors
+// - Recommended for modern tests
 ```
 
 ---
@@ -1112,5 +1286,319 @@ page.locator('input[name="firstname"]')  // Stable attribute
 5. **Has Text** - `:has-text("text")` (Good)
 6. **Multiple** - `selector1, selector2` (Fair)
 
+---
+
+# GETBY METHODS - Modern Approach
+
+## What are GetBy Methods?
+
+**GetBy methods** are modern, recommended alternatives to regular locators.
+
+Think of it like: **New way to find elements (better, more readable, more maintainable)**
+
+### Why Use GetBy?
+- **More readable** - Clear intent
+- **Better accessibility** - Finds elements like users do
+- **Less error-prone** - Dedicated methods for each case
+- **Recommended by Playwright** - Modern best practice
+- **Better performance** - Optimized implementations
+
+---
+
+## GetBy Methods - Complete List
+
+### 1. getByRole() - Find by Accessibility Role
+
+**What it does:** Finds element by its accessibility role.
+
+**Example:**
+```javascript
+test('Find elements by role', async ({ page }) => {
+  await page.goto('https://testautomationpractice.blogspot.com/');
+  
+  // Find button
+  const submitButton = page.getByRole('button', { name: 'Submit' });
+  await submitButton.click();
+  
+  // Find link
+  const homeLink = page.getByRole('link', { name: 'Home' });
+  await homeLink.click();
+  
+  // Find textbox
+  const emailInput = page.getByRole('textbox', { name: 'Email' });
+  await emailInput.fill('test@example.com');
+  
+  // Find checkbox
+  const agreeCheckbox = page.getByRole('checkbox', { name: 'I agree' });
+  await agreeCheckbox.check();
+  
+  console.log('✓ Elements found by role');
+});
+```
+
+---
+
+### 2. getByText() - Find by Visible Text
+
+**What it does:** Finds element containing exact or partial text.
+
+**Example:**
+```javascript
+test('Find elements by text', async ({ page }) => {
+  await page.goto('https://testautomationpractice.blogspot.com/');
+  
+  // Exact text match
+  const button = page.getByText('Submit Form');
+  await button.click();
+  
+  // Partial match (case insensitive)
+  const link = page.getByText('View Products', { exact: false });
+  await link.click();
+  
+  console.log('✓ Elements found by text');
+});
+```
+
+---
+
+### 3. getByLabel() - Find by Label Text
+
+**What it does:** Finds input by associated label.
+
+**Example:**
+```javascript
+test('Find inputs by label', async ({ page }) => {
+  await page.goto('https://testautomationpractice.blogspot.com/');
+  
+  // Find input by its label
+  const emailInput = page.getByLabel('Email Address:');
+  await emailInput.fill('user@example.com');
+  
+  const passwordInput = page.getByLabel('Password:');
+  await passwordInput.fill('myPassword123');
+  
+  const agreeCheckbox = page.getByLabel('I agree to terms');
+  await agreeCheckbox.check();
+  
+  console.log('✓ Inputs found by label');
+});
+```
+
+---
+
+### 4. getByPlaceholder() - Find by Placeholder Text
+
+**What it does:** Finds input by its placeholder text.
+
+**Example:**
+```javascript
+test('Find inputs by placeholder', async ({ page }) => {
+  await page.goto('https://testautomationpractice.blogspot.com/');
+  
+  // Find by placeholder
+  const nameInput = page.getByPlaceholder('Enter your name');
+  await nameInput.fill('John Doe');
+  
+  const emailInput = page.getByPlaceholder('Email address');
+  await emailInput.fill('john@example.com');
+  
+  const searchBox = page.getByPlaceholder('Search products...');
+  await searchBox.fill('laptop');
+  
+  console.log('✓ Inputs found by placeholder');
+});
+```
+
+---
+
+### 5. getByTestId() - Find by Test ID (Recommended for Testing)
+
+**What it does:** Finds element by data-testid attribute. **BEST FOR TESTING!**
+
+**Example:**
+```javascript
+test('Find elements by test id', async ({ page }) => {
+  await page.goto('https://testautomationpractice.blogspot.com/');
+  
+  // Most reliable for automated tests
+  const submitButton = page.getByTestId('submit-btn');
+  await submitButton.click();
+  
+  const userProfile = page.getByTestId('user-profile-section');
+  await userProfile.hover();
+  
+  const deleteButton = page.getByTestId('delete-action');
+  await deleteButton.click();
+  
+  console.log('✓ Elements found by test id');
+});
+```
+
+**Why getByTestId is Best:**
+- Developers can add `data-testid` specifically for testing
+- Not dependent on visual text (which can change)
+- Not affected by CSS styling changes
+- Most stable and reliable
+- Professional testing approach
+
+---
+
+### 6. getByAltText() - Find by Alt Text (Images)
+
+**What it does:** Finds image by its alt text.
+
+**Example:**
+```javascript
+test('Find images by alt text', async ({ page }) => {
+  await page.goto('https://testautomationpractice.blogspot.com/');
+  
+  // Find image by alt text
+  const productImage = page.getByAltText('Laptop image');
+  await productImage.click();
+  
+  const logo = page.getByAltText('Company logo');
+  const isVisible = await logo.isVisible();
+  
+  console.log('Logo visible:', isVisible);
+});
+```
+
+---
+
+### 7. getByTitle() - Find by Title Attribute
+
+**What it does:** Finds element by its title attribute (hover text).
+
+**Example:**
+```javascript
+test('Find elements by title', async ({ page }) => {
+  await page.goto('https://testautomationpractice.blogspot.com/');
+  
+  // Find by title (hover tooltip)
+  const helpIcon = page.getByTitle('Click for help');
+  await helpIcon.click();
+  
+  const infoButton = page.getByTitle('More information');
+  await infoButton.hover();
+  
+  console.log('✓ Elements found by title');
+});
+```
+
+---
+
+## Complete Example - Using GetBy Methods
+
+```javascript
+import { test } from '@playwright/test';
+
+test('Complete form using all GetBy methods', async ({ page }) => {
+  await page.goto('https://testautomationpractice.blogspot.com/');
+  
+  // 1. GetByLabel - find form inputs
+  const firstNameInput = page.getByLabel('First Name:');
+  await firstNameInput.fill('John');
+  
+  // 2. GetByPlaceholder - find search
+  const searchInput = page.getByPlaceholder('Search products');
+  await searchInput.fill('laptop');
+  await searchInput.press('Enter');
+  
+  // 3. GetByRole - find buttons and selects
+  const submitButton = page.getByRole('button', { name: 'Submit' });
+  const countrySelect = page.getByRole('combobox', { name: 'Country' });
+  await countrySelect.selectOption('USA');
+  
+  // 4. GetByText - find links and headings
+  const homeLink = page.getByText('Home');
+  await homeLink.click();
+  
+  // 5. GetByTestId - most reliable for testing
+  const userForm = page.getByTestId('user-form');
+  const deleteButton = page.getByTestId('delete-user');
+  
+  // 6. GetByAltText - find images
+  const productImage = page.getByAltText('Product thumbnail');
+  await productImage.click();
+  
+  // 7. GetByTitle - find tooltips
+  const helpIcon = page.getByTitle('Get help');
+  await helpIcon.hover();
+  
+  await submitButton.click();
+  
+  console.log('✓ Form completed using all GetBy methods');
+});
+```
+
+---
+
+## GetBy vs Regular Locators Comparison
+
+| Task | Regular Locator | GetBy Method | Recommended |
+|------|-----------------|--------------|-------------|
+| Find by ID | `#elementId` | N/A (no getById) | Use regular |
+| Find by role | `role=button` | `getByRole()` | **GetBy** |
+| Find by text | `text=Submit` | `getByText()` | **GetBy** |
+| Find by label | `input[aria-label="..."` | `getByLabel()` | **GetBy** |
+| Find by placeholder | `input[placeholder="..."` | `getByPlaceholder()` | **GetBy** |
+| Find by test id | `[data-testid="..."` | `getByTestId()` | **GetBy** |
+| Find by alt text | `img[alt="..."` | `getByAltText()` | **GetBy** |
+| Find by title | `[title="..."` | `getByTitle()` | **GetBy** |
+
+---
+
+## Priority - GetBy First!
+
+### NEW RECOMMENDED PRIORITY ORDER
+
+1. ✅ **GetByTestId()** - `getByTestId('my-button')` (BEST FOR TESTING)
+2. ✅ **GetByRole()** - `getByRole('button', { name: 'Submit' })` (Most accessible)
+3. ✅ **GetByLabel()** - `getByLabel('Email:')` (User-centric)
+4. ✅ **GetByPlaceholder()** - `getByPlaceholder('Enter email')` (Clear intent)
+5. ✅ **GetByText()** - `getByText('Submit')` (Simple visibility)
+6. ⚠️ **Regular Locators** - `page.locator()` (Fallback only)
+
+---
+
+## Quick Reference - GetBy Cheat Sheet
+
+```javascript
+// By role (with name filter)
+page.getByRole('button', { name: 'Submit' })
+page.getByRole('checkbox', { name: 'I agree' })
+page.getByRole('link', { name: 'Home' })
+
+// By text
+page.getByText('Submit Form')
+page.getByText(/partial.*match/i)  // Case insensitive regex
+
+// By label
+page.getByLabel('Email Address:')
+
+// By placeholder
+page.getByPlaceholder('Enter password')
+
+// By test id (BEST for testing!)
+page.getByTestId('submit-button')
+
+// By alt text (images)
+page.getByAltText('Product image')
+
+// By title (tooltips)
+page.getByTitle('Click for help')
+```
+
+---
+
 ### Golden Rule
-**Always choose the most stable, semantic locator that describes WHAT the element is, not WHERE it is!** 🎯
+**Always choose **GetBy methods first**, then regular locators only as fallback!**
+
+GetBy methods are:
+- ✅ More readable
+- ✅ More maintainable  
+- ✅ More accessible
+- ✅ Recommended by Playwright team
+- ✅ Better for long-term test stability
+
+**Modern testing best practice: Use GetBy > Regular Locators** 🎯
