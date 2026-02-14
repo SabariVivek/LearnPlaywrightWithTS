@@ -1,4 +1,4 @@
-# Playwright Locators - Complete Guide
+# Playwright Locators
 
 ## What are Locators?
 
