@@ -1,4 +1,4 @@
-# Playwright Assertions - Complete Guide
+# Playwright Assertions
 
 ## What are Assertions?
 
