@@ -1,0 +1,990 @@
+# Network Interception & Mocking Guide
+
+## Overview
+
+Network Interception allows you to intercept, analyze, modify, or mock network requests and responses from your frontend tests. This is critical for UI automation because:
+
+- **Control API behavior** without touching real backend
+- **Test error scenarios** (500 errors, timeouts, network failures)
+- **Skip third-party services** (payment, email, SMS gateways)
+- **Speed up tests** by avoiding real API calls
+- **Reproduce edge cases** (empty responses, malformed data)
+- **Test offline scenarios** without disconnecting internet
+- **CI/CD independence** - run tests without backend service
+
+This guide covers intercepting, mocking, modifying, and simulating network failures for professional UI testing.
+
+---
+
+## 1. Network Interception Basics
+
+### What Gets Intercepted?
+
+Playwright's route interception catches:
+- ✅ HTTP/HTTPS requests from browser
+- ✅ API calls (XMLHttpRequest, Fetch)
+- ✅ Image, CSS, JavaScript resource loading
+- ✅ Third-party service calls
+- ✅ WebSocket connections
+
+### Why Mock Network Calls?
+
+```typescript
+// ❌ WITHOUT mocking (unreliable)
+await page.locator('button:has-text("Load Products")').click();
+// Waits indefinitely if API is down
+// Test fails if third-party service is unavailable
+// Slow - actual network latency
+
+// ✅ WITH mocking (reliable)
+await page.route('**/api/products', route => {
+  route.fulfill({
+    status: 200,
+    body: JSON.stringify([...])
+  });
+});
+// Instant response
+// Works offline
+// Predictable
+```
+
+---
+
+## 2. Route Interception Methods
+
+### Method 1: route() - Intercept and Abort
+
+```typescript
+import { test } from '@playwright/test';
+
+test('abort third-party analytics', async ({ page }) => {
+  // Block all Google Analytics
+  await page.route('**/google-analytics/**', route => {
+    console.log(`Blocking: ${route.request().url()}`);
+    route.abort();  // Don't send request
+  });
+
+  // Block all ads
+  await page.route('**/ads/**', route => route.abort());
+
+  await page.goto('https://testautomationpractice.blogspot.com/');
+
+  // Page loads without analytics/ads
+  const title = await page.title();
+  console.log(`Page loaded: ${title}`);
+});
+```
+
+### Method 2: route() - Intercept and Fulfill
+
+```typescript
+import { test } from '@playwright/test';
+
+test('mock API response', async ({ page }) => {
+  // Mock product list API
+  await page.route('**/api/products', route => {
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([
+        { id: 1, name: 'Laptop', price: 999 },
+        { id: 2, name: 'Phone', price: 599 },
+        { id: 3, name: 'Tablet', price: 399 },
+      ]),
+    });
+  });
+
+  await page.goto('https://testautomationpractice.blogspot.com/');
+  
+  // Trigger API call
+  await page.locator('button:has-text("Load Products")').click();
+
+  // Verify response is used
+  await page.waitForSelector('text=Laptop');
+  await page.waitForSelector('text=Phone');
+});
+```
+
+### Method 3: route() - Pass Through
+
+```typescript
+import { test } from '@playwright/test';
+
+test('selective mocking - mock some, pass through others', async ({ page }) => {
+  // Block external analytics, but allow everything else
+  await page.route(route => {
+    const url = route.request().url();
+
+    if (url.includes('analytics') || url.includes('tracking')) {
+      // Block tracking services
+      route.abort();
+    } else if (url.includes('api/products')) {
+      // Mock products API
+      route.fulfill({
+        status: 200,
+        body: JSON.stringify([{ id: 1, name: 'Laptop' }]),
+      });
+    } else {
+      // Allow everything else
+      route.continue();
+    }
+  });
+
+  await page.goto('https://testautomationpractice.blogspot.com/');
+});
+```
+
+---
+
+## 3. Request Details & Modification
+
+### Inspect Request Details
+
+```typescript
+import { test } from '@playwright/test';
+
+test('inspect request details', async ({ page }) => {
+  await page.route('**/api/**', route => {
+    const request = route.request();
+
+    // Log request details
+    console.log(`Method: ${request.method()}`);
+    console.log(`URL: ${request.url()}`);
+    console.log(`Headers: ${JSON.stringify(request.headers())}`);
+    console.log(`Post data: ${request.postData()}`);
+
+    // Get parsed JSON if POST
+    const postDataBuffer = request.postData();
+    if (postDataBuffer) {
+      const postData = JSON.parse(postDataBuffer);
+      console.log(`Post body: ${JSON.stringify(postData)}`);
+    }
+
+    route.continue();
+  });
+
+  await page.goto('https://testautomationpractice.blogspot.com/');
+  await page.locator('button:has-text("Submit")').click();
+});
+```
+
+### Modify Request Before Sending
+
+```typescript
+import { test } from '@playwright/test';
+
+test('modify request before server receives it', async ({ page }) => {
+  await page.route('**/api/users', async (route) => {
+    // Get original request
+    const request = route.request();
+    
+    // Modify and continue with new data
+    await route.continue({
+      method: 'GET',  // Override method
+      headers: {
+        ...request.headers(),
+        'Authorization': 'Bearer fake-token-for-testing',
+        'X-Custom-Header': 'test-value',
+      },
+      postData: JSON.stringify({
+        username: 'test-user',
+        role: 'admin',
+      }),
+    });
+  });
+
+  await page.goto('https://testautomationpractice.blogspot.com/');
+  await page.locator('input[name="username"]').fill('user');
+  await page.locator('button:has-text("Login")').click();
+});
+```
+
+---
+
+## 4. Response Mocking Patterns
+
+### Basic Response Mock
+
+```typescript
+import { test } from '@playwright/test';
+
+test('mock simple API response', async ({ page }) => {
+  await page.route('**/api/user/profile', route => {
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        id: 123,
+        name: 'John Doe',
+        email: 'john@example.com',
+        role: 'admin',
+      }),
+    });
+  });
+
+  await page.goto('https://testautomationpractice.blogspot.com/');
+  
+  // Verify profile data loaded
+  await page.waitForText('John Doe');
+  await page.waitForText('john@example.com');
+});
+```
+
+### Empty Array Response
+
+```typescript
+import { test } from '@playwright/test';
+
+test('handle empty results', async ({ page }) => {
+  await page.route('**/api/search', route => {
+    // Simulate no results found
+    route.fulfill({
+      status: 200,
+      body: JSON.stringify({
+        results: [],
+        total: 0,
+        message: 'No products found',
+      }),
+    });
+  });
+
+  await page.goto('https://testautomationpractice.blogspot.com/');
+  await page.locator('input[name="search"]').fill('nonexistent');
+  await page.locator('button:has-text("Search")').click();
+
+  // Verify "no results" message shows
+  await page.waitForText('No products found');
+});
+```
+
+### Paginated Responses
+
+```typescript
+import { test } from '@playwright/test';
+
+test('mock paginated API responses', async ({ page }) => {
+  let pageNumber = 1;
+
+  await page.route('**/api/products**', async (route) => {
+    const url = new URL(route.request().url());
+    const page_param = url.searchParams.get('page');
+    pageNumber = parseInt(page_param || '1');
+
+    const responses: Record<number, object> = {
+      1: {
+        items: [
+          { id: 1, name: 'Product 1' },
+          { id: 2, name: 'Product 2' },
+        ],
+        page: 1,
+        hasMore: true,
+      },
+      2: {
+        items: [
+          { id: 3, name: 'Product 3' },
+          { id: 4, name: 'Product 4' },
+        ],
+        page: 2,
+        hasMore: false,
+      },
+    };
+
+    route.fulfill({
+      status: 200,
+      body: JSON.stringify(responses[pageNumber]),
+    });
+  });
+
+  await page.goto('https://testautomationpractice.blogspot.com/');
+
+  // Load page 1
+  await page.locator('button:has-text("Page 1")').click();
+  await page.waitForText('Product 1');
+
+  // Load page 2
+  await page.locator('button:has-text("Page 2")').click();
+  await page.waitForText('Product 3');
+});
+```
+
+---
+
+## 5. Error Scenarios
+
+### Simulate 404 Not Found
+
+```typescript
+import { test } from '@playwright/test';
+
+test('handle 404 error gracefully', async ({ page }) => {
+  await page.route('**/api/products/999', route => {
+    route.fulfill({
+      status: 404,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        error: 'Product not found',
+        code: 'PRODUCT_NOT_FOUND',
+      }),
+    });
+  });
+
+  await page.goto('https://testautomationpractice.blogspot.com/');
+  await page.locator('button:has-text("View Product 999")').click();
+
+  // Verify error message displays
+  await page.waitForText('Product not found');
+});
+```
+
+### Simulate 500 Server Error
+
+```typescript
+import { test, expect } from '@playwright/test';
+
+test('handle server error (500)', async ({ page }) => {
+  await page.route('**/api/checkout', route => {
+    route.fulfill({
+      status: 500,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        error: 'Internal server error',
+        message: 'Payment processing failed',
+      }),
+    });
+  });
+
+  await page.goto('https://testautomationpractice.blogspot.com/');
+  await page.locator('button:has-text("Checkout")').click();
+
+  // Verify retry button or error message
+  await expect(page.locator('text=Payment processing failed')).toBeVisible();
+  await expect(page.locator('button:has-text("Retry")')).toBeVisible();
+});
+```
+
+### Simulate Timeout
+
+```typescript
+import { test } from '@playwright/test';
+
+test('handle API timeout', async ({ page }) => {
+  await page.route('**/api/payment', route => {
+    // Never respond (simulates timeout)
+    // Don't call route.continue() or route.fulfill()
+  });
+
+  await page.goto('https://testautomationpractice.blogspot.com/');
+  
+  // Set timeout for payment click
+  await page.locator('button:has-text("Pay Now")').click({
+    timeout: 3000,  // 3 second timeout
+  });
+
+  // Verify timeout error handling
+  await page.waitForText('Request timed out');
+});
+```
+
+### Simulate Network Failure
+
+```typescript
+import { test } from '@playwright/test';
+
+test('handle network failure', async ({ page }) => {
+  await page.route('**/api/**', route => {
+    // Simulate network error
+    route.abort('failed');
+  });
+
+  await page.goto('https://testautomationpractice.blogspot.com/');
+  await page.locator('button:has-text("Load Data")').click();
+
+  // Verify retry mechanism kicks in
+  await page.waitForText('Network error occurred');
+});
+```
+
+---
+
+## 6. Mocking Third-Party Services
+
+### Block Analytics & Tracking
+
+```typescript
+import { test } from '@playwright/test';
+
+test('block all tracking services', async ({ page }) => {
+  // Block Google Analytics
+  await page.route('**/google-analytics/**', route => route.abort());
+  await page.route('**/analytics.google.com/**', route => route.abort());
+
+  // Block Facebook Pixel
+  await page.route('**/facebook.com/tr**', route => route.abort());
+
+  // Block Hotjar
+  await page.route('**/hotjar.com/**', route => route.abort());
+
+  // Block all pixel trackers
+  await page.route('**/pixel.jpg', route => route.abort());
+
+  await page.goto('https://testautomationpractice.blogspot.com/');
+
+  // Page loads faster without tracking
+  const isVisible = await page.locator('h1').isVisible();
+  console.log(`Page loaded: ${isVisible}`);
+});
+```
+
+### Mock Payment Gateway
+
+```typescript
+import { test, expect } from '@playwright/test';
+
+test('mock payment gateway (Stripe)', async ({ page }) => {
+  // Mock Stripe API
+  await page.route('**/stripe.com/**', route => route.abort());
+  
+  // Mock payment processing endpoint
+  await page.route('**/api/process-payment', route => {
+    route.fulfill({
+      status: 200,
+      body: JSON.stringify({
+        success: true,
+        transactionId: 'txn_1234567890',
+        amount: 99.99,
+        currency: 'USD',
+      }),
+    });
+  });
+
+  await page.goto('https://testautomationpractice.blogspot.com/');
+  await page.locator('input[name="cardNumber"]').fill('4242424242424242');
+  await page.locator('button:has-text("Pay")').click();
+
+  // Verify payment success
+  await expect(page.locator('text=Payment successful')).toBeVisible();
+  await expect(page.locator('text=txn_1234567890')).toBeVisible();
+});
+```
+
+### Mock Email Service
+
+```typescript
+import { test, expect } from '@playwright/test';
+
+test('mock email sending (Sendgrid)', async ({ page }) => {
+  let emailSent = false;
+  let emailAddress = '';
+
+  // Mock sendgrid API
+  await page.route('**/api.sendgrid.com/**', route => {
+    route.fulfill({
+      status: 202,
+      body: JSON.stringify({
+        message: 'email queued',
+      }),
+    });
+  });
+
+  // Intercept our backend email endpoint
+  await page.route('**/api/send-email', route => {
+    const postData = route.request().postData();
+    if (postData) {
+      const data = JSON.parse(postData);
+      emailSent = true;
+      emailAddress = data.to;
+    }
+    
+    route.fulfill({
+      status: 200,
+      body: JSON.stringify({ success: true }),
+    });
+  });
+
+  await page.goto('https://testautomationpractice.blogspot.com/');
+  await page.locator('input[name="email"]').fill('user@example.com');
+  await page.locator('button:has-text("Send Email")').click();
+
+  // Verify email was sent
+  expect(emailSent).toBe(true);
+  expect(emailAddress).toBe('user@example.com');
+});
+```
+
+---
+
+## 7. Testing Loading States
+
+### Mock Slow API
+
+```typescript
+import { test, expect } from '@playwright/test';
+
+test('test loading state with slow API', async ({ page }) => {
+  await page.route('**/api/products', async (route) => {
+    // Wait 2 seconds before responding
+    await page.waitForTimeout(2000);
+
+    route.fulfill({
+      status: 200,
+      body: JSON.stringify([
+        { id: 1, name: 'Product 1' },
+      ]),
+    });
+  });
+
+  await page.goto('https://testautomationpractice.blogspot.com/');
+  
+  // Click to load products
+  await page.locator('button:has-text("Load")').click();
+
+  // Verify loading spinner shows
+  await expect(page.locator('.spinner, .loading')).toBeVisible({
+    timeout: 500,
+  });
+
+  // Wait for data to load
+  await expect(page.locator('text=Product 1')).toBeVisible({
+    timeout: 5000,
+  });
+
+  // Verify spinner disappears
+  await expect(page.locator('.spinner')).toBeHidden();
+});
+```
+
+---
+
+## 8. Complete E-commerce Example
+
+```typescript
+import { test, expect } from '@playwright/test';
+
+test.describe('E-commerce with mocked APIs', () => {
+  test('complete purchase with mocked endpoints', async ({ page }) => {
+    // Mock authentication
+    await page.route('**/api/login', route => {
+      route.fulfill({
+        status: 200,
+        body: JSON.stringify({
+          token: 'fake-jwt-token',
+          user: { id: 1, name: 'Test User' },
+        }),
+      });
+    });
+
+    // Mock products list
+    await page.route('**/api/products**', route => {
+      route.fulfill({
+        status: 200,
+        body: JSON.stringify({
+          products: [
+            { id: 1, name: 'Laptop', price: 999, stock: 5 },
+            { id: 2, name: 'Mouse', price: 29, stock: 100 },
+            { id: 3, name: 'Keyboard', price: 79, stock: 50 },
+          ],
+        }),
+      });
+    });
+
+    // Mock add to cart
+    await page.route('**/api/cart/add', route => {
+      route.fulfill({
+        status: 200,
+        body: JSON.stringify({
+          success: true,
+          cartTotal: 1028,
+          itemCount: 2,
+        }),
+      });
+    });
+
+    // Mock shipping options
+    await page.route('**/api/shipping**', route => {
+      route.fulfill({
+        status: 200,
+        body: JSON.stringify([
+          { id: 1, name: 'Standard', cost: 10, days: '5-7' },
+          { id: 2, name: 'Express', cost: 25, days: '2-3' },
+          { id: 3, name: 'Overnight', cost: 50, days: '1' },
+        ]),
+      });
+    });
+
+    // Mock payment processing
+    await page.route('**/api/process-payment', route => {
+      route.fulfill({
+        status: 200,
+        body: JSON.stringify({
+          success: true,
+          orderId: 'ORD-2026-001234',
+          transactionId: 'txn_9876543210',
+        }),
+      });
+    });
+
+    // Block external analytics
+    await page.route('**/analytics/**', route => route.abort());
+    await page.route('**/doubleclick.net/**', route => route.abort());
+
+    // Start test
+    await page.goto('https://testautomationpractice.blogspot.com/');
+
+    // Step 1: Login
+    console.log('📍 Logging in...');
+    await page.locator('a:has-text("Login")').click();
+    await page.locator('input[name="email"]').fill('test@example.com');
+    await page.locator('input[name="password"]').fill('password123');
+    await page.locator('button:has-text("Sign In")').click();
+
+    // Step 2: Browse products
+    console.log('📍 Browsing products...');
+    await expect(page.locator('text=Laptop')).toBeVisible();
+    await expect(page.locator('text=Mouse')).toBeVisible();
+
+    // Step 3: Add to cart
+    console.log('📍 Adding to cart...');
+    await page.locator('button:has-text("Add to Cart"):first').click();
+    await page.waitForTimeout(500);
+    await page.locator('button:has-text("Add to Cart"):nth(1)').click();
+
+    // Step 4: Go to cart
+    console.log('📍 Viewing cart...');
+    await page.locator('a:has-text("Cart")').click();
+    await expect(page.locator('text=1028')).toBeVisible();
+
+    // Step 5: Checkout
+    console.log('📍 Proceeding to checkout...');
+    await page.locator('button:has-text("Checkout")').click();
+
+    // Step 6: Select shipping
+    console.log('📍 Selecting shipping...');
+    await page.locator('input[value="2"]').check();  // Express shipping
+    await expect(page.locator('text=Express')).toBeVisible();
+
+    // Step 7: Enter billing info
+    console.log('📍 Entering billing details...');
+    await page.locator('input[name="address"]').fill('123 Main St');
+    await page.locator('input[name="city"]').fill('New York');
+    await page.locator('select[name="state"]').selectOption('NY');
+    await page.locator('input[name="zip"]').fill('10001');
+
+    // Step 8: Payment
+    console.log('📍 Processing payment...');
+    await page.locator('button:has-text("Pay Now")').click();
+
+    // Step 9: Verify success
+    console.log('📍 Verifying order...');
+    await expect(page.locator('text=Order Confirmed')).toBeVisible();
+    await expect(page.locator('text=ORD-2026-001234')).toBeVisible();
+    await expect(page.locator('text=txn_9876543210')).toBeVisible();
+
+    console.log('✅ Complete purchase flow passed with mocked APIs');
+  });
+});
+```
+
+---
+
+## 9. Advanced Patterns
+
+### Context-Level Route Mocking
+
+```typescript
+import { test } from '@playwright/test';
+
+test('apply routes to entire context', async ({ context }) => {
+  // All pages in context will have these routes
+  await context.route('**/api/**', route => {
+    const url = route.request().url();
+    
+    if (url.includes('products')) {
+      route.fulfill({
+        status: 200,
+        body: JSON.stringify([
+          { id: 1, name: 'Product' },
+        ]),
+      });
+    } else {
+      route.continue();
+    }
+  });
+
+  // Both pages share the routes
+  const page1 = await context.newPage();
+  const page2 = await context.newPage();
+
+  await page1.goto('https://testautomationpractice.blogspot.com/');
+  await page2.goto('https://testautomationpractice.blogspot.com/');
+
+  console.log('Both pages use mocked APIs');
+});
+```
+
+### Chained Routes
+
+```typescript
+import { test } from '@playwright/test';
+
+test('chain multiple route handlers', async ({ page }) => {
+  // First route: Log all requests
+  await page.route('**/api/**', async (route) => {
+    console.log(`Request: ${route.request().method()} ${route.request().url()}`);
+    await route.fallback();  // Pass to next handler
+  });
+
+  // Second route: Block ads
+  await page.route('**/ads/**', route => route.abort());
+
+  // Third route: Mock products
+  await page.route('**/api/products', route => {
+    route.fulfill({
+      status: 200,
+      body: JSON.stringify([{ id: 1, name: 'Product' }]),
+    });
+  });
+
+  await page.goto('https://testautomationpractice.blogspot.com/');
+});
+```
+
+---
+
+## 10. Best Practices
+
+### ✅ DO
+
+```typescript
+// DO: Mock external services
+await page.route('**/google-analytics/**', route => route.abort());
+await page.route('**/analytics.google.com/**', route => route.abort());
+
+// DO: Mock third-party APIs
+await page.route('**/stripe.com/**', route => route.abort());
+await page.route('**/sendgrid.com/**', route => route.abort());
+
+// DO: Use realistic mock data
+route.fulfill({
+  status: 200,
+  body: JSON.stringify({
+    // Include all fields frontend expects
+    id: 1,
+    name: 'Product',
+    price: 99.99,
+    inStock: true,
+  }),
+});
+
+// DO: Test error cases
+await page.route('**/api/critical', route => {
+  route.fulfill({ status: 500 });
+});
+
+// DO: Mock slow responses to test loading states
+await page.waitForTimeout(2000);  // 2 second delay
+route.fulfill({ status: 200 });
+
+// DO: Clean up routes after test
+test.afterEach(async ({ page }) => {
+  await page.unroteAll();
+});
+```
+
+### ❌ DON'T
+
+```typescript
+// DON'T: Leave routes active across tests
+// (Multiple routes can conflict)
+test.beforeEach(async ({ page }) => {
+  await page.unroteAll();  // Clean state
+});
+
+// DON'T: Mock everything indiscriminately
+// (Mock only what you need to)
+
+// DON'T: Use incomplete mock data
+// (Frontend may crash if fields are missing)
+
+// DON'T: Ignore status codes
+// (Frontend may handle differently for 200 vs 201)
+
+// DON'T: Mock critical paths in negative scenarios
+// (Test real failures to ensure error handling works)
+```
+
+---
+
+## 11. CI/CD Integration
+
+### Environment-Based Mocking
+
+```typescript
+import { test } from '@playwright/test';
+
+test('enable mocking only in CI', async ({ page }) => {
+  const isCI = process.env.CI === 'true';
+
+  if (isCI) {
+    // Mock APIs in CI/CD (no real backend)
+    await page.route('**/api/**', route => {
+      route.fulfill({
+        status: 200,
+        body: JSON.stringify({ data: [] }),
+      });
+    });
+  }
+  // In local development, real APIs are used
+
+  await page.goto('https://testautomationpractice.blogspot.com/');
+});
+```
+
+### Mock Fixtures
+
+```typescript
+import { test as base } from '@playwright/test';
+
+// Create custom fixtures with pre-configured mocks
+type MockedFixtures = {
+  mockAPI: void;
+};
+
+const test = base.extend<MockedFixtures>({
+  mockAPI: async ({ page }, use) => {
+    // Setup all common mocks
+    await page.route('**/api/products', route => {
+      route.fulfill({
+        status: 200,
+        body: JSON.stringify([{ id: 1, name: 'Product' }]),
+      });
+    });
+
+    await page.route('**/api/users', route => {
+      route.fulfill({
+        status: 200,
+        body: JSON.stringify({ id: 1, name: 'User' }),
+      });
+    });
+
+    await page.route('**/analytics/**', route => route.abort());
+
+    await use();
+  },
+});
+
+test('use mock fixture', async ({ page, mockAPI }) => {
+  // All mocks pre-configured
+  await page.goto('https://testautomationpractice.blogspot.com/');
+});
+```
+
+---
+
+## 12. Common Scenarios
+
+### Timeout Handling
+
+```typescript
+// Simulate slow backend
+await page.route('**/api/slow', async (route) => {
+  await page.waitForTimeout(5000);
+  route.fulfill({ status: 200 });
+});
+```
+
+### Rate Limiting
+
+```typescript
+let requestCount = 0;
+
+await page.route('**/api/search', (route) => {
+  requestCount++;
+
+  if (requestCount > 3) {
+    // Simulate rate limit
+    route.fulfill({
+      status: 429,  // Too Many Requests
+      body: JSON.stringify({ error: 'Rate limited' }),
+    });
+  } else {
+    route.continue();
+  }
+});
+```
+
+### Redirects
+
+```typescript
+await page.route('**/old-api/**', (route) => {
+  const newUrl = route.request().url().replace('old-api', 'api');
+  route.fulfill({
+    status: 301,
+    headers: { 'Location': newUrl },
+  });
+});
+```
+
+### CORS Errors
+
+```typescript
+await page.route('**/cross-origin-api', (route) => {
+  route.fulfill({
+    status: 0,  // Network error for CORS
+    body: 'CORS error: Access denied',
+  });
+});
+```
+
+---
+
+## Key Takeaways
+
+🎯 **Core Concepts:**
+- Route interception catches network requests before/after sending
+- Can abort, fulfill (mock), or continue requests
+- Essential for testing without real backends
+
+🛠️ **Main Patterns:**
+- `route.abort()` - Block request
+- `route.fulfill()` - Mock response
+- `route.continue()` - Allow request through (optionally modified)
+
+📊 **Best Uses:**
+- Block third-party tracking/analytics
+- Mock payment, email, SMS gateways
+- Test error scenarios (4xx, 5xx)
+- Speed up tests (no network latency)
+- CI/CD without backend dependency
+
+🔍 **Debugging:**
+- Log request URLs to understand what's being called
+- Inspect request headers, body
+- Mock with realistic data structures
+- Test both success and error paths
+
+---
+
+## Quick Reference Commands
+
+```bash
+# Run tests with network mocking
+npm run test
+
+# Run specific test file with mocking
+npm run test tests/checkout.spec.ts
+
+# Debug with inspector (see network in DevTools)
+npx playwright test --debug
+
+# View network logs
+PWDEBUG=1 npm run test 2>&1 | grep -i network
+```
+
+---
+
+**Next Steps:**
+- Identify third-party services in your application
+- Mock payment and email endpoints
+- Test error scenarios (timeouts, failures)
+- Set up CI/CD without backend dependency
+- Create reusable mock fixtures
